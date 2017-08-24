@@ -59,12 +59,11 @@ class InputUtil:
         func (function): the function executed
         args (tuple): arguments to be passed
         timeout (int): time to wait after being able to execute again"""
-        if isinstance(key_codes, tuple):
-            self._hotkeys.append((list(key_codes), Hotkey(func, args, timeout)))
-        else:
-            self._hotkeys.append((list((key_codes,)), Hotkey(func, args, timeout)))
+        kc_tp = list(key_codes) if isinstance(key_codes, tuple) else list((key_codes,))
+        ag_tp = [] if args is None else list(args)
+        self._hotkeys.append((kc_tp, _Hotkey(func, ag_tp, timeout)))
 
-class Hotkey():
+class _Hotkey():
     """Hotkey Class for InputUtil"""
     _executing = False
     _exec_queued = False
@@ -73,7 +72,7 @@ class Hotkey():
     def __init__(self, func, args, timeout=_DEFAULT_HOTKEY_TIMEOUT_TIME):
         """i don't need no stinkin docstring!"""
         self.func = func
-        self.args = False if args is None else args
+        self.args = args
         self.timeout = timeout
     def start(self):
         """Start main hotkey loop"""
