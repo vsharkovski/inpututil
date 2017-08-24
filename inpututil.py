@@ -1,7 +1,6 @@
 """Keyboard and Mouse input utility for Windows.
 Detects keystrokes and mouse clicks.
 Supports binding functions to multiple keys."""
-
 import time
 from threading import Thread
 
@@ -38,7 +37,6 @@ class InputUtil:
                     for k in kcodes:
                         if not win32api.GetAsyncKeyState(k):
                             all_pressed = False
-                            #print('a_np')
                             break
                     if all_pressed:
                         hkey.execute()
@@ -57,11 +55,14 @@ class InputUtil:
         """Stop the main input loop, effectively killing the thread"""
         self._state = self._STATE_STOPPED
     def bind_hotkey(self, key_codes, func, args, timeout=_DEFAULT_HOTKEY_TIMEOUT_TIME):
-        """Make it so when all the keys with key codes in [key_codes] are pressed,
-        function [func] is executed with arguments [args] in a separate thread,
-        and then that thread sleeps for [timeout] seconds"""
-        self._hotkeys.append((list(key_codes), Hotkey(func, args, timeout)))
-        print('binded')
+        """key_codes (tuple): key codes for the keys needed to be pressed so func(args) happens
+        func (function): the function executed
+        args (tuple): arguments to be passed
+        timeout (int): time to wait after being able to execute again"""
+        if isinstance(key_codes, tuple):
+            self._hotkeys.append((list(key_codes), Hotkey(func, args, timeout)))
+        else:
+            self._hotkeys.append((list((key_codes,)), Hotkey(func, args, timeout)))
 
 class Hotkey():
     """Hotkey Class for InputUtil"""
