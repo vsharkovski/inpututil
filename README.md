@@ -1,6 +1,8 @@
 # inpututil
-Keyboard [not yet]and Mouse[/not yet] input utility for Windows.
+Keyboard and Mouse\* input utility for Windows.
 
-Detects keystrokes [not yet]and mouse clicks[/not yet].
+Detects keystrokes and mouse clicks*.
 
 Supports binding functions to individual keys or key combination.
+
+\*Not yet
