@@ -55,7 +55,7 @@ class InputUtil:
         """Stop the main input loop, effectively killing the thread"""
         self._state = self._STATE_STOPPED
     def bind_hotkey(self, key_codes, func, args, timeout=_DEFAULT_HOTKEY_TIMEOUT_TIME):
-        """key_codes (tuple): key codes for the keys needed to be pressed so func(args) happens
+        """key_codes (tuple/int): key codes for the keys needed to be pressed so func(args) happens
         func (function): the function executed
         args (tuple): arguments to be passed
         timeout (int): time to wait after being able to execute again"""
@@ -73,7 +73,7 @@ class Hotkey():
     def __init__(self, func, args, timeout=_DEFAULT_HOTKEY_TIMEOUT_TIME):
         """i don't need no stinkin docstring!"""
         self.func = func
-        self.args = args
+        self.args = False if args is None else args
         self.timeout = timeout
     def start(self):
         """Start main hotkey loop"""
@@ -83,7 +83,7 @@ class Hotkey():
         while self.alive:
             if self._exec_queued:
                 self._executing = True
-                self.func(self.args)
+                self.func(*self.args)
                 time.sleep(self.timeout)
                 self._exec_queued = False
                 self._executing = False
