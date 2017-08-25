@@ -3,6 +3,6 @@ Keyboard and Mouse\* input utility for Windows.
 
 Detects keystrokes and mouse clicks*.
 
-Supports binding functions to individual keys or key combination.
+Supports binding functions to individual keys or key combinations.
 
 \*Not yet
