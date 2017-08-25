@@ -15,42 +15,58 @@ class InputUtil:
     _STATE_PAUSED = 2
     _STATE_STOPPED = 3
     _hotkeys = []
+    _input_thread = None
+    _pause_kcodes = []
     def __init__(self, loop_time=_DEFAULT_LOOP_TIME):
         """loop_time: time the main input loop sleeps after each cycle"""
         self._state = self._STATE_NOTSTARTED
         self.loop_time = loop_time
     def start(self):
         """Start the main input loop"""
+        if self._state != self._STATE_NOTSTARTED:
+            raise Exception("Main input loop has already been started once, "
+                            + "if it is paused try resume()")
         if self._hotkeys.count == 0:
             raise Exception("No hotkeys set, cannot start main input loop")
         for _, hkey in self._hotkeys:
             hkey.start()
-        Thread(target=self._start).start()
+        self._input_thread = Thread(target=self._start)
+        self._input_thread.start()
     def _start(self):
-        import win32api
-        # pylint: disable=E1101
         self._state = self._STATE_RUNNING
         while True:
             if self._state == self._STATE_RUNNING:
                 for kcodes, hkey in self._hotkeys:
-                    all_pressed = True
-                    for k in kcodes:
-                        if not win32api.GetAsyncKeyState(k):
-                            all_pressed = False
-                            break
-                    if all_pressed:
-                        hkey.execute()
-            elif self._state == self._STATE_PAUSED:
-                pass
+                    InputUtil._call_func_if_keys_down(kcodes, hkey.execute)
             elif self._state == self._STATE_STOPPED:
                 break
+            InputUtil._call_func_if_keys_down(self._pause_kcodes, self.pause_or_resume)
             time.sleep(self.loop_time)
+    @staticmethod
+    def _call_func_if_keys_down(kcodes, func):
+        import win32api
+        # pylint: disable=E1101
+        for k in kcodes:
+            if not win32api.GetAsyncKeyState(k):
+                return
+        return func()
     def pause(self):
         """Pause the main input loop"""
         self._state = self._STATE_PAUSED
-    def unpause(self):
-        """Unpause (resume) the main input loop"""
+    def resume(self):
+        """Resume the main input loop"""
+        if self._state == self._STATE_NOTSTARTED:
+            raise Exception("Cannot resume the main input loop; it is not even started")
+        if self._state == self._STATE_STOPPED:
+            raise Exception("Cannot resume the main input loop; it has been stopped forever")
         self._state = self._STATE_RUNNING
+    def pause_or_resume(self):
+        """Pause or resume the main input loop"""
+        if self._state == self._STATE_PAUSED:
+            self.resume()
+        elif self._state == self._STATE_RUNNING:
+            self.pause()
+        time.sleep(1)
     def stop(self):
         """Stop the main input loop, effectively killing the thread"""
         self._state = self._STATE_STOPPED
@@ -62,6 +78,13 @@ class InputUtil:
         kc_tp = list(key_codes) if isinstance(key_codes, tuple) else list((key_codes,))
         ag_tp = [] if args is None else list(args)
         self._hotkeys.append((kc_tp, _Hotkey(func, ag_tp, timeout)))
+    def bind_pause_hotkey(self, key_codes):
+        """Bind a key code or key codes so that when they are all pressed,
+        the main input loop pauses or resumes"""
+        if isinstance(key_codes, tuple):
+            self._pause_kcodes += list(key_codes)
+        else:
+            self._pause_kcodes += list((key_codes,))
 
 class _Hotkey():
     """Hotkey Class for InputUtil"""
@@ -78,7 +101,6 @@ class _Hotkey():
         """Start main hotkey loop"""
         Thread(target=self._run).start()
     def _run(self):
-        """i don't need no stinkin docstring!"""
         while self.alive:
             if self._exec_queued:
                 self._executing = True
