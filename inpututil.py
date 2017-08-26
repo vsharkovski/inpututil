@@ -21,6 +21,7 @@ class InputUtil:
         """loop_time: time the main input loop sleeps after each cycle"""
         self._state = self._STATE_NOTSTARTED
         self.loop_time = loop_time
+
     def start(self):
         """Start the main input loop"""
         if self._state != self._STATE_NOTSTARTED:
@@ -32,6 +33,7 @@ class InputUtil:
             hkey.start()
         self._input_thread = Thread(target=self._start)
         self._input_thread.start()
+
     def _start(self):
         self._state = self._STATE_RUNNING
         while True:
@@ -42,6 +44,7 @@ class InputUtil:
                 break
             InputUtil._call_func_if_keys_down(self._pause_kcodes, self.pause_or_resume)
             time.sleep(self.loop_time)
+
     @staticmethod
     def _call_func_if_keys_down(kcodes, func):
         import win32api
@@ -50,6 +53,10 @@ class InputUtil:
             if not win32api.GetAsyncKeyState(k):
                 return
         return func()
+
+    def stop(self):
+        """Stop the main input loop, effectively killing the thread"""
+        self._state = self._STATE_STOPPED
     def pause(self):
         """Pause the main input loop"""
         self._state = self._STATE_PAUSED
@@ -67,24 +74,55 @@ class InputUtil:
         elif self._state == self._STATE_RUNNING:
             self.pause()
         time.sleep(1)
-    def stop(self):
-        """Stop the main input loop, effectively killing the thread"""
-        self._state = self._STATE_STOPPED
-    def bind_hotkey(self, key_codes, func, args, timeout=_DEFAULT_HOTKEY_TIMEOUT_TIME):
-        """key_codes (tuple/int): key codes for the keys needed to be pressed so func(args) happens
+
+    def bind_hotkey(self, **kwargs):
+        # pylint: disable=C0301
+        """keyword arguments:
+        keys (list/int): key codes for the keys needed to be pressed so func(args) happens
+        timeout (int): time to wait after being able to execute again (has default)
         func (function): the function executed
-        args (tuple): arguments to be passed
-        timeout (int): time to wait after being able to execute again"""
-        kc_tp = list(key_codes) if isinstance(key_codes, tuple) else list((key_codes,))
-        ag_tp = [] if args is None else list(args)
-        self._hotkeys.append((kc_tp, _Hotkey(func, ag_tp, timeout)))
-    def bind_pause_hotkey(self, key_codes):
-        """Bind a key code or key codes so that when they are all pressed,
-        the main input loop pauses or resumes"""
-        if isinstance(key_codes, tuple):
-            self._pause_kcodes += list(key_codes)
+        args (list): arguments to be passed"""
+        keys = []
+        timeout = _DEFAULT_HOTKEY_TIMEOUT_TIME
+        func = None
+        _args = []
+        _kwargs = None
+        if 'keys' not in kwargs:
+            raise Exception("Keyword argument 'keys' must be passed")
+        elif isinstance(kwargs['keys'], list):
+            keys += kwargs['keys']
+        elif isinstance(kwargs['keys'], int):
+            keys.append(kwargs['keys'])
         else:
-            self._pause_kcodes += list((key_codes,))
+            raise Exception("Keyword argument 'keys' must be list or integer")
+
+        if 'timeout' in kwargs:
+            if not isinstance(kwargs['timeout'], float) and not isinstance(kwargs['timeout'], int):
+                raise Exception("Keyword argument 'timeout' must be a number")
+            else:
+                timeout = kwargs['timeout']
+
+        if 'func' not in kwargs:
+            raise Exception("Keyword argument 'func' must be passed")
+        func = kwargs['func']
+        if 'args' in kwargs:
+            _args += kwargs['args']
+        if 'kwargs' in kwargs:
+            _kwargs = kwargs['kwargs']
+        else:
+            _kwargs = {}
+        self._hotkeys.append((keys, _Hotkey(timeout=timeout, func=func, args=_args, kwargs=_kwargs)))
+
+    def bind_pause_hotkey(self, keys):
+        """Bind a key or keys (by their key codes) so that when they are all pressed,
+        the main input loop pauses or resumes"""
+        if isinstance(keys, list):
+            self._pause_kcodes += keys
+        elif isinstance(keys, int):
+            self._pause_kcodes.append(keys)
+        else:
+            raise Exception("Argument 'keys' must be list or integer")
+
 
 class _Hotkey():
     """Hotkey Class for InputUtil"""
@@ -92,11 +130,15 @@ class _Hotkey():
     _exec_queued = False
     alive = True
     timeout_idle = 0.02
-    def __init__(self, func, args, timeout=_DEFAULT_HOTKEY_TIMEOUT_TIME):
+    def __init__(self, **kwargs):
         """i don't need no stinkin docstring!"""
-        self.func = func
-        self.args = args
-        self.timeout = timeout
+        self.timeout = kwargs['timeout']
+        self.func = kwargs['func']
+        self.args = kwargs['args']
+        self.kwargs = kwargs['kwargs']
+    def _func_caller(self):
+        """call self.func with appropreate args and kwargs"""
+        self.func(*self.args, **self.kwargs)
     def start(self):
         """Start main hotkey loop"""
         Thread(target=self._run).start()
@@ -104,12 +146,13 @@ class _Hotkey():
         while self.alive:
             if self._exec_queued:
                 self._executing = True
-                self.func(*self.args)
+                self._func_caller()
                 time.sleep(self.timeout)
                 self._exec_queued = False
                 self._executing = False
                 continue
             time.sleep(self.timeout_idle)
+
     def execute(self):
         """Execute hotkey"""
         if not self._executing:
