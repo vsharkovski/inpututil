@@ -136,9 +136,7 @@ class _Hotkey():
         self.func = kwargs['func']
         self.args = kwargs['args']
         self.kwargs = kwargs['kwargs']
-    def _func_caller(self):
-        """call self.func with appropreate args and kwargs"""
-        self.func(*self.args, **self.kwargs)
+        
     def start(self):
         """Start main hotkey loop"""
         Thread(target=self._run).start()
@@ -146,7 +144,7 @@ class _Hotkey():
         while self.alive:
             if self._exec_queued:
                 self._executing = True
-                self._func_caller()
+                self.func(*self.args, **self.kwargs)
                 time.sleep(self.timeout)
                 self._exec_queued = False
                 self._executing = False
