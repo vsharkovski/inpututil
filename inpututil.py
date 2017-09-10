@@ -4,29 +4,39 @@ Supports binding functions to multiple keys."""
 import time
 from threading import Thread
 
-_DEFAULT_LOOP_TIME = 0.02
-_DEFAULT_HOTKEY_TIMEOUT_TIME = 0.02
+_DEFAULT_RUN_DELAY = 0.02
+_DEFAULT_PAUSE_DELAY = 2
+_DEFAULT_HOTKEY_DELAY = 0.02
 
 class InputUtil:
     """Use this."""
+    #pylint: disable=R0902
     import collections
     _STATE_NOTSTARTED = 0
     _STATE_RUNNING = 1
     _STATE_PAUSED = 2
     _STATE_STOPPED = 3
+    _WINDOW_DETECT_DELAY = 2
     _hotkeys = []
     _input_thread = None
     _pause_kcodes = []
-    def __init__(self, loop_time=_DEFAULT_LOOP_TIME):
+    _active_window_name = ""
+    _fgwin_name = ""
+    _window_detect_thread = None
+
+    def __init__(self, run_delay=_DEFAULT_RUN_DELAY, pause_delay=_DEFAULT_PAUSE_DELAY):
         """loop_time: time the main input loop sleeps after each cycle"""
         self._state = self._STATE_NOTSTARTED
-        self.loop_time = loop_time
+        self.run_delay = run_delay
+        self.pause_delay = pause_delay
 
     def start(self):
         """Start the main input loop"""
         if self._state != self._STATE_NOTSTARTED:
             raise Exception("Main input loop has already been started once, "
                             + "if it is paused try resume()")
+        self._window_detect_thread = Thread(target=self._window_detect_loop)
+        self._window_detect_thread.start()
         if self._hotkeys.count == 0:
             raise Exception("No hotkeys set, cannot start main input loop")
         for _, hkey in self._hotkeys:
@@ -37,18 +47,36 @@ class InputUtil:
     def _start(self):
         self._state = self._STATE_RUNNING
         while True:
+            InputUtil._call_func_if_keys_down(self._pause_kcodes, self.pause_or_resume)
+
+            if self._fgwin_name == self._active_window_name:
+                self.resume()
+            else:
+                self.pause()
+
             if self._state == self._STATE_RUNNING:
                 for kcodes, hkey in self._hotkeys:
                     InputUtil._call_func_if_keys_down(kcodes, hkey.execute)
+                time.sleep(self.run_delay)
+            elif self._state == self._STATE_PAUSED:
+                time.sleep(self.pause_delay)
             elif self._state == self._STATE_STOPPED:
                 break
-            InputUtil._call_func_if_keys_down(self._pause_kcodes, self.pause_or_resume)
-            time.sleep(self.loop_time)
+
+    def _window_detect_loop(self):
+        # pylint: disable=E1101
+        import win32gui
+        if self._active_window_name is not None:
+            while True:
+                self._fgwin_name = win32gui.GetWindowText(win32gui.GetForegroundWindow())
+                if self._state == self._STATE_STOPPED:
+                    break
+                time.sleep(self._WINDOW_DETECT_DELAY)
 
     @staticmethod
     def _call_func_if_keys_down(kcodes, func):
-        import win32api
         # pylint: disable=E1101
+        import win32api
         for k in kcodes:
             if not win32api.GetAsyncKeyState(k):
                 return
@@ -73,7 +101,6 @@ class InputUtil:
             self.resume()
         elif self._state == self._STATE_RUNNING:
             self.pause()
-        time.sleep(1)
 
     def bind_hotkey(self, **kwargs):
         # pylint: disable=C0301
@@ -83,7 +110,7 @@ class InputUtil:
         func (function): the function executed
         args (list): arguments to be passed"""
         keys = []
-        timeout = _DEFAULT_HOTKEY_TIMEOUT_TIME
+        timeout = _DEFAULT_HOTKEY_DELAY
         func = None
         _args = []
         _kwargs = None
@@ -123,6 +150,12 @@ class InputUtil:
         else:
             raise Exception("Argument 'keys' must be list or integer")
 
+    def set_active_window(self, wname):
+        """Make it so the input loop automatically pauses when the selected
+        window's name is not [wname] (and unpauses when it is, if it can)"""
+        if not isinstance(wname, str):
+            raise Exception("Active window name must be a string")
+        self._active_window_name = wname
 
 class _Hotkey():
     """Hotkey Class for InputUtil"""
@@ -136,7 +169,7 @@ class _Hotkey():
         self.func = kwargs['func']
         self.args = kwargs['args']
         self.kwargs = kwargs['kwargs']
-        
+
     def start(self):
         """Start main hotkey loop"""
         Thread(target=self._run).start()
