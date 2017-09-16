@@ -1,10 +1,10 @@
 """When you open notepad and you press F while the notepad window is active,
-It will detect it and print to indicate it."""
+It will print to tell you."""
 import importutil
 
 def onPressF():
     """example"""
-    print('pressed F!')
+    print("pressed 'F' in notepad!")
 
 iu = inpututil.InputUtil()
 iu.set_active_window('Untitled - Notepad') #make it so it only detects keys when this window is active
