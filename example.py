@@ -1,6 +1,6 @@
 """When you open notepad and you press F while the notepad window is active,
 It will print to tell you."""
-import importutil
+import inpututil
 
 def onPressF():
     """example"""
